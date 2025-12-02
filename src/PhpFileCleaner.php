@@ -13,6 +13,7 @@
 namespace SymbolMapGenerator;
 
 use Composer\Pcre\Preg;
+use RuntimeException;
 
 /**
  * @author Jordi Boggiano <j.boggiano@seld.be>
@@ -53,6 +54,8 @@ class PhpFileCleaner
     public static function setTypeConfig(array $types): void
     {
         foreach ($types as $type) {
+            $type = \strtolower($type);
+
             self::$typeConfig[$type[0]] = [
                 'name' => $type,
                 'length' => \strlen($type),
@@ -60,7 +63,8 @@ class PhpFileCleaner
             ];
         }
 
-        self::$restPattern = '{[^?"\'</'.implode('', array_keys(self::$typeConfig)).']+}A';
+        // @todo original was not case-insensitive... I wonder if that was by-design or if it just wasn't necessary so wasn't even a consideration.
+        self::$restPattern = '{[^?"\'</'.implode('', array_keys(self::$typeConfig)).']+}Ai';
     }
 
     public function __construct(string $contents, int $maxMatches)
@@ -75,6 +79,7 @@ class PhpFileCleaner
         $clean = '';
 
         while ($this->index < $this->len) {
+            // @todo if file ends with closing php tag followed by newline this adds in a php open tag.
             $this->skipToPhp();
             $clean .= '<?';
 
@@ -86,44 +91,38 @@ class PhpFileCleaner
                     continue 2;
                 }
 
-                if ($char === '"') {
-                    $this->skipString('"');
+                if ($this->skipAllStrings()) {
                     $clean .= 'null';
                     continue;
                 }
 
-                if ($char === "'") {
-                    $this->skipString("'");
-                    $clean .= 'null';
+                if ($this->skipAllComments()) {
                     continue;
                 }
 
-                if ($char === "<" && $this->peek('<') && $this->match('{<<<[ \t]*+([\'"]?)([a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff]*+)\\1(?:\r\n|\n|\r)}A', $match)) {
-                    $this->index += \strlen($match[0]);
-                    $this->skipHeredoc($match[2]);
-                    $clean .= 'null';
-                    continue;
-                }
+                $lowerChar = \strtolower($char);
 
-                if ($char === '/') {
-                    if ($this->peek('/')) {
-                        $this->skipToNewline();
-                        continue;
-                    }
-
-                    if ($this->peek('*')) {
-                        $this->skipComment();
-                        continue;
-                    }
-                }
-
-                if ($this->maxMatches === 1 && isset(self::$typeConfig[$char])) {
-                    $type = self::$typeConfig[$char];
+                if ($this->maxMatches === 1 && isset(self::$typeConfig[$lowerChar])) {
+                    $type = self::$typeConfig[$lowerChar];
                     if (
-                        \substr($this->contents, $this->index, $type['length']) === $type['name']
+                        \strtolower(\substr($this->contents, $this->index, $type['length'])) === $type['name']
                         && Preg::isMatch($type['pattern'], $this->contents, $match, 0, $this->index - 1)
                     ) {
                         return $clean . $match[0];
+                    }
+                }
+
+                if (isset(self::$typeConfig[$lowerChar])) {
+                    $type = self::$typeConfig[$lowerChar];
+
+                    if (
+                        \strtolower(\substr($this->contents, $this->index, $type['length'])) === $type['name']
+                        && Preg::isMatch($type['pattern'], $this->contents, $match, 0, $this->index - 1)
+                    ) {
+                        $clean .= $this->skipTo('{');
+                        $this->skipBracketedBody();
+                        $clean .= '{}';
+                        continue;
                     }
                 }
 
@@ -231,6 +230,113 @@ class PhpFileCleaner
 
                 break;
             }
+        }
+    }
+
+    private function skipTo(string $character): string
+    {
+        $return = '';
+
+        while ($this->index < $this->len) {
+            if ($this->contents[$this->index] === $character) {
+                break;
+            }
+
+            $return .= $this->contents[$this->index];
+            $this->index += 1;
+        }
+
+        if ($return === '') {
+            // Shouldn't happen since we are only using to find opening curly bracket after symbol has been identified.
+            // @todo We probably shouldn't throw anyway...
+            throw new RuntimeException("Character not found: {$character}");
+        }
+
+        return $return;
+    }
+
+    private function skipAllStrings(): bool
+    {
+        $char = $this->contents[$this->index];
+
+        if ($char === '"') {
+            $this->skipString('"');
+
+            return true;
+        }
+
+        if ($char === "'") {
+            $this->skipString("'");
+
+            return true;
+        }
+
+        if ($char === "<" && $this->peek('<') && $this->match('{<<<[ \t]*+([\'"]?)([a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff]*+)\\1(?:\r\n|\n|\r)}A', $match)) {
+            $this->index += \strlen($match[0]);
+            $this->skipHeredoc($match[2]);
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private function skipAllComments(): bool
+    {
+        // @todo it's not clear why we are removing comments since this is only used internally with the result of a
+        // call to php_strip_whitespace which should have already removed all comments...
+        if ($this->contents[$this->index] === '/') {
+            if ($this->peek('/')) {
+                $this->skipToNewline();
+
+                return true;
+            }
+
+            if ($this->peek('*')) {
+                $this->skipComment();
+
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function skipBracketedBody(): void
+    {
+        $this->index += 1;
+        $depth = 1;
+        while ($this->index < $this->len) {
+            if ($this->skipAllStrings() || $this->skipAllComments()) {
+                continue;
+            }
+
+            $char = $this->contents[$this->index];
+
+            if ($char === '{') {
+                $depth += 1;
+                $this->index += 1;
+                continue;
+            }
+
+            if ($char === '}') {
+                $depth -= 1;
+                $this->index += 1;
+
+                if ($depth === 0) {
+                    break;
+                }
+
+                continue;
+            }
+
+            $this->index += 1;
+        }
+
+        if ($this->index === $this->len && $depth !== 0) {
+            // Shouldn't happen if we are working with valid PHP.
+            // @todo We probably shouldn't throw anyway...
+            throw new RuntimeException('Failed to find end of bracketed body.');
         }
     }
 
