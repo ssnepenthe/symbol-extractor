@@ -20,14 +20,14 @@ namespace SymbolMapGenerator\Compat;
 
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use SymbolMapGenerator\ClassMapGenerator;
+use SymbolMapGenerator\SymbolMapGenerator;
 use Symfony\Component\Finder\Finder;
 use Symfony\Component\Filesystem\Filesystem;
 
 class ClassMapGeneratorTest extends TestCase
 {
     /**
-     * @var ClassMapGenerator
+     * @var SymbolMapGenerator
      */
     private $generator;
 
@@ -35,7 +35,7 @@ class ClassMapGeneratorTest extends TestCase
     {
         parent::setUp();
 
-        $this->generator = new ClassMapGenerator(['php', 'inc', 'hh']);
+        $this->generator = new SymbolMapGenerator(['php', 'inc', 'hh']);
     }
 
     protected function tearDown(): void
@@ -53,7 +53,7 @@ class ClassMapGeneratorTest extends TestCase
     #[DataProvider('getTestCreateMapTests')]
     public function testCreateMap(string $directory, array $expected): void
     {
-        self::assertEqualsNormalized($expected, ClassMapGenerator::createMap($directory));
+        self::assertEqualsNormalized($expected, SymbolMapGenerator::createMap($directory));
     }
 
     /**
@@ -149,11 +149,11 @@ class ClassMapGeneratorTest extends TestCase
         self::assertEqualsNormalized(array(
             'NamespaceCollision\\A\\B\\Bar' => realpath(__DIR__) . '/Fixtures/beta/NamespaceCollision/A/B/Bar.php',
             'NamespaceCollision\\A\\B\\Foo' => realpath(__DIR__) . '/Fixtures/beta/NamespaceCollision/A/B/Foo.php',
-        ), ClassMapGenerator::createMap($finder));
+        ), SymbolMapGenerator::createMap($finder));
     }
 
     /**
-     * @see ClassMapGenerator::isStreamWrapper()
+     * @see SymbolMapGenerator::isStreamWrapper()
      */
     public function testStreamWrapperSupport(): void {
 
@@ -228,7 +228,7 @@ class ClassMapGeneratorTest extends TestCase
                 'Smarty_Internal_Compile_Block'      => 'test://InvalidUnicode.php',
                 'Smarty_Internal_Compile_Blockclose' => 'test://InvalidUnicode.php',
             ],
-            ClassMapGenerator::createMap($arrayOfSplFileInfoStreamPaths)
+            SymbolMapGenerator::createMap($arrayOfSplFileInfoStreamPaths)
         );
     }
 
@@ -250,10 +250,10 @@ class ClassMapGeneratorTest extends TestCase
 
         $this->generator->scanPaths($finder);
         $classMap = $this->generator->getClassMap();
-        self::assertCount(1, $classMap->getAmbiguousClasses());
-        self::assertArrayHasKey('A', $classMap->getAmbiguousClasses());
-        self::assertCount(1, $classMap->getAmbiguousClasses()['A']);
-        $path = $classMap->getAmbiguousClasses()['A'][0];
+        self::assertCount(1, $classMap->getAmbiguousSymbols());
+        self::assertArrayHasKey('A', $classMap->getAmbiguousSymbols());
+        self::assertCount(1, $classMap->getAmbiguousSymbols()['A']);
+        $path = $classMap->getAmbiguousSymbols()['A'][0];
         self::assertContains($path, $possibleAmbiguousPaths, $path . ' not found in expected paths (' . var_export($possibleAmbiguousPaths, true) . ')');
 
         $fs = new Filesystem();
@@ -293,25 +293,25 @@ class ClassMapGeneratorTest extends TestCase
         $this->generator->scanPaths($tempDir.'/src');
         $this->generator->scanPaths($tempDir.'/ambiguous');
         $classMap = $this->generator->getClassMap();
-        self::assertCount(0, $classMap->getAmbiguousClasses());
+        self::assertCount(0, $classMap->getAmbiguousSymbols());
 
         // but when retrieving without filtering, the ambiguous classes are there
-        self::assertCount(1, $classMap->getAmbiguousClasses(false));
-        self::assertCount(3, $classMap->getAmbiguousClasses(false)['A']);
+        self::assertCount(1, $classMap->getAmbiguousSymbols(false));
+        self::assertCount(3, $classMap->getAmbiguousSymbols(false)['A']);
 
         // if we scan tests first however, then we always get ambiguous refs as the test one is overriding src
-        $this->generator = new ClassMapGenerator(['php', 'inc', 'hh']);
+        $this->generator = new SymbolMapGenerator(['php', 'inc', 'hh']);
         $this->generator->scanPaths($tempDir.'/ambiguous');
         $this->generator->scanPaths($tempDir.'/src');
         $classMap = $this->generator->getClassMap();
 
         // when retrieving with filtering, only the one from src is seen as ambiguous
-        self::assertCount(1, $classMap->getAmbiguousClasses());
-        self::assertCount(1, $classMap->getAmbiguousClasses()['A']);
-        self::assertSame($tempDir.'/src'.DIRECTORY_SEPARATOR.'A.php', $classMap->getAmbiguousClasses()['A'][0]);
+        self::assertCount(1, $classMap->getAmbiguousSymbols());
+        self::assertCount(1, $classMap->getAmbiguousSymbols()['A']);
+        self::assertSame($tempDir.'/src'.DIRECTORY_SEPARATOR.'A.php', $classMap->getAmbiguousSymbols()['A'][0]);
         // when retrieving without filtering, all the ambiguous classes are there
-        self::assertCount(1, $classMap->getAmbiguousClasses(false));
-        self::assertCount(3, $classMap->getAmbiguousClasses(false)['A']);
+        self::assertCount(1, $classMap->getAmbiguousSymbols(false));
+        self::assertCount(3, $classMap->getAmbiguousSymbols(false)['A']);
 
         $fs = new Filesystem();
         $fs->remove($tempDir);
@@ -320,8 +320,8 @@ class ClassMapGeneratorTest extends TestCase
     public function testCreateMapThrowsWhenDirectoryDoesNotExist(): void
     {
         self::expectException('RuntimeException');
-        self::expectExceptionMessage('Could not scan for classes inside');
-        ClassMapGenerator::createMap(__DIR__ . '/no-file.no-foler');
+        self::expectExceptionMessage('Could not scan for symbols inside');
+        SymbolMapGenerator::createMap(__DIR__ . '/no-file.no-foler');
     }
 
     public function testCreateMapDoesNotHitRegexBacktraceLimit(): void
@@ -337,52 +337,10 @@ class ClassMapGeneratorTest extends TestCase
         );
 
         ini_set('pcre.backtrack_limit', '30000');
-        $result = ClassMapGenerator::createMap(__DIR__ . '/Fixtures/pcrebacktracelimit');
+        $result = SymbolMapGenerator::createMap(__DIR__ . '/Fixtures/pcrebacktracelimit');
         ini_restore('pcre.backtrack_limit');
 
         self::assertEqualsNormalized($expected, $result);
-    }
-
-    public function testGetPSR4Violations(): void
-    {
-        $this->generator->scanPaths(__DIR__ . '/Fixtures/psrViolations', null, 'psr-4', 'ExpectedNamespace\\');
-        $classMap = $this->generator->getClassMap();
-        $violations = $classMap->getPsrViolations();
-        sort($violations);
-        self::assertSame(
-            [
-                'Class ClassWithoutNameSpace located in ./tests/Compat/Fixtures/psrViolations/ClassWithoutNameSpace.php does not comply with psr-4 autoloading standard (rule: ExpectedNamespace\ => ./tests/Compat/Fixtures/psrViolations). Skipping.',
-                'Class ExpectedNamespace\UnexpectedSubNamespace\ClassWithIncorrectSubNamespace located in ./tests/Compat/Fixtures/psrViolations/ClassWithIncorrectSubNamespace.php does not comply with psr-4 autoloading standard (rule: ExpectedNamespace\ => ./tests/Compat/Fixtures/psrViolations). Skipping.',
-                'Class UnexpectedNamespace\ClassWithNameSpaceOutsideConfiguredScope located in ./tests/Compat/Fixtures/psrViolations/ClassWithNameSpaceOutsideConfiguredScope.php does not comply with psr-4 autoloading standard (rule: ExpectedNamespace\ => ./tests/Compat/Fixtures/psrViolations). Skipping.',
-            ],
-            $violations
-        );
-    }
-
-    public function testGetRawPSR4Violations(): void
-    {
-        $this->generator->scanPaths(__DIR__ . '/Fixtures/psrViolations', null, 'psr-4', 'ExpectedNamespace\\');
-        $classMap = $this->generator->getClassMap();
-        $rawViolations = $classMap->getRawPsrViolations();
-
-        $classWithoutNameSpaceFilepath = strtr(__DIR__, '\\', '/') . '/Fixtures/psrViolations/ClassWithoutNameSpace.php';
-        $classWithIncorrectSubNamespaceFilepath = strtr(__DIR__, '\\', '/') . '/Fixtures/psrViolations/ClassWithIncorrectSubNamespace.php';
-        $classWithNameSpaceOutsideConfiguredScopeFilepath = strtr(__DIR__, '\\', '/') . '/Fixtures/psrViolations/ClassWithNameSpaceOutsideConfiguredScope.php';
-
-        self::assertArrayHasKey($classWithoutNameSpaceFilepath, $rawViolations);
-        self::assertCount(1, $rawViolations[$classWithoutNameSpaceFilepath]);
-        self::assertSame('Class ClassWithoutNameSpace located in ./tests/Compat/Fixtures/psrViolations/ClassWithoutNameSpace.php does not comply with psr-4 autoloading standard (rule: ExpectedNamespace\ => ./tests/Compat/Fixtures/psrViolations). Skipping.', $rawViolations[$classWithoutNameSpaceFilepath][0]['warning']);
-        self::assertSame('ClassWithoutNameSpace', $rawViolations[$classWithoutNameSpaceFilepath][0]['className']);
-
-        self::assertArrayHasKey($classWithIncorrectSubNamespaceFilepath, $rawViolations);
-        self::assertCount(1, $rawViolations[$classWithIncorrectSubNamespaceFilepath]);
-        self::assertSame('Class ExpectedNamespace\UnexpectedSubNamespace\ClassWithIncorrectSubNamespace located in ./tests/Compat/Fixtures/psrViolations/ClassWithIncorrectSubNamespace.php does not comply with psr-4 autoloading standard (rule: ExpectedNamespace\ => ./tests/Compat/Fixtures/psrViolations). Skipping.', $rawViolations[$classWithIncorrectSubNamespaceFilepath][0]['warning']);
-        self::assertSame('ExpectedNamespace\UnexpectedSubNamespace\ClassWithIncorrectSubNamespace', $rawViolations[$classWithIncorrectSubNamespaceFilepath][0]['className']);
-
-        self::assertArrayHasKey($classWithNameSpaceOutsideConfiguredScopeFilepath, $rawViolations);
-        self::assertCount(1, $rawViolations[$classWithNameSpaceOutsideConfiguredScopeFilepath]);
-        self::assertSame('Class UnexpectedNamespace\ClassWithNameSpaceOutsideConfiguredScope located in ./tests/Compat/Fixtures/psrViolations/ClassWithNameSpaceOutsideConfiguredScope.php does not comply with psr-4 autoloading standard (rule: ExpectedNamespace\ => ./tests/Compat/Fixtures/psrViolations). Skipping.', $rawViolations[$classWithNameSpaceOutsideConfiguredScopeFilepath][0]['warning']);
-        self::assertSame('UnexpectedNamespace\ClassWithNameSpaceOutsideConfiguredScope', $rawViolations[$classWithNameSpaceOutsideConfiguredScopeFilepath][0]['className']);
     }
 
     public function testCreateMapWithDirectoryExcluded(): void
@@ -392,7 +350,7 @@ class ClassMapGeneratorTest extends TestCase
             'PrefixCollision_A_B_Foo' => realpath(__DIR__) . '/Fixtures/beta/PrefixCollision/A/B/Foo.php',
         );
 
-        $this->generator->scanPaths(realpath(__DIR__) . '/Fixtures/beta', null, 'classmap', null, ['NamespaceCollision']);
+        $this->generator->scanPaths(realpath(__DIR__) . '/Fixtures/beta', null, ['NamespaceCollision']);
         $result = $this->generator->getClassMap();
         self::assertEqualsNormalized($expected, $result->getMap());
     }

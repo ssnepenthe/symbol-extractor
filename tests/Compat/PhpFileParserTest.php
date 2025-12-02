@@ -26,6 +26,6 @@ class PhpFileParserTest extends TestCase
     {
         self::expectException('RuntimeException');
         self::expectExceptionMessage('does not exist');
-        PhpFileParser::findClasses(__DIR__ . '/no-file');
+        PhpFileParser::findSymbols(__DIR__ . '/no-file');
     }
 }

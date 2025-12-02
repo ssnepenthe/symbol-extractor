@@ -21,18 +21,18 @@ use Composer\Pcre\Preg;
 class PhpFileParser
 {
     /**
-     * Extract the classes in the given file
+     * Extract the symbols in the given file
      *
      * @param  string            $path The file to check
      * @throws RuntimeException
-     * @return list<class-string> The found classes
+     * @return array{function: string[], classLike: class-string[]} The found symbols
      */
-    public static function findClasses(string $path): array
+    public static function findSymbols(string $path): array
     {
         $extraTypes = self::getExtraTypes();
 
         if (!function_exists('php_strip_whitespace')) {
-            throw new RuntimeException('Classmap generation relies on the php_strip_whitespace function, but it has been disabled by the disable_functions directive.');
+            throw new RuntimeException('Symbol generation relies on the php_strip_whitespace function, but it has been disabled by the disable_functions directive.');
         }
 
         // Use @ here instead of Silencer to actively suppress 'unhelpful' output
@@ -40,11 +40,11 @@ class PhpFileParser
         $contents = @php_strip_whitespace($path);
         if ('' === $contents) {
             if (!file_exists($path)) {
-                $message = 'File at "%s" does not exist, check your classmap definitions';
+                $message = 'File at "%s" does not exist';
             } elseif (!self::isReadable($path)) {
                 $message = 'File at "%s" is not readable, check its permissions';
             } elseif ('' === trim((string) file_get_contents($path))) {
-                // The input file was really empty and thus contains no classes
+                // The input file was really empty and thus contains no symbols
                 return [];
             } else {
                 $message = 'File at "%s" could not be parsed as PHP, it may be binary or corrupted';
@@ -58,24 +58,19 @@ class PhpFileParser
             throw new RuntimeException(sprintf($message, $path));
         }
 
-        // return early if there is no chance of matching anything in this file
-        Preg::matchAllStrictGroups('{\b(?:class|interface|trait'.$extraTypes.')\s}i', $contents, $matches);
-        if ([] === $matches[0]) {
-            return [];
-        }
-
-        $p = new PhpFileCleaner($contents, count($matches[0]));
+        // @todo $maxMatches
+        $p = new PhpFileCleaner($contents, /* count($matches[0]) */ 999);
         $contents = $p->clean();
         unset($p);
 
         Preg::matchAll('{
             (?:
-                 \b(?<![\\\\$:>])(?P<type>class|interface|trait'.$extraTypes.') \s++ (?P<name>[a-zA-Z_\x7f-\xff:][a-zA-Z0-9_\x7f-\xff:\-]*+)
+                 \b(?<![\\\\$:>])(?P<type>class|function|interface|trait'.$extraTypes.') \s++ (?P<name>[a-zA-Z_\x7f-\xff:][a-zA-Z0-9_\x7f-\xff:\-]*+)
                | \b(?<![\\\\$:>])(?P<ns>namespace) (?P<nsname>\s++[a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*+(?:\s*+\\\\\s*+[a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*+)*+)? \s*+ [\{;]
             )
         }ix', $contents, $matches);
 
-        $classes = [];
+        $symbols = ['function' => [], 'classLike' => []];
         $namespace = '';
 
         for ($i = 0, $len = count($matches['type']); $i < $len; ++$i) {
@@ -110,13 +105,18 @@ class PhpFileParser
                     }
                 }
 
-                /** @var class-string */
-                $className = ltrim($namespace . $name, '\\');
-                $classes[] = $className;
+                /** @var string */
+                $symbolName = ltrim($namespace . $name, '\\');
+
+                if ($matches['type'][$i] === 'function') {
+                    $symbols['function'][] = $symbolName;
+                } else {
+                    $symbols['classLike'][] = $symbolName;
+                }
             }
         }
 
-        return $classes;
+        return $symbols;
     }
 
     private static function getExtraTypes(): string
@@ -131,7 +131,7 @@ class PhpFileParser
                 $extraTypesArray = ['enum'];
             }
 
-            PhpFileCleaner::setTypeConfig(array_merge(['class', 'interface', 'trait'], $extraTypesArray));
+            PhpFileCleaner::setTypeConfig(array_merge(['class', 'function', 'interface', 'trait'], $extraTypesArray));
         }
 
         return $extraTypes;
