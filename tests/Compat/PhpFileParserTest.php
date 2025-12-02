@@ -18,10 +18,7 @@
 
 namespace SymbolMapGenerator;
 
-use Composer\ClassMapGenerator\ClassMapGenerator;
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\Finder\Finder;
-use Symfony\Component\Filesystem\Filesystem;
 
 class PhpFileParserTest extends TestCase
 {

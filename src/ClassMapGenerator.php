@@ -20,7 +20,6 @@ namespace SymbolMapGenerator;
 
 use Composer\Pcre\Preg;
 use Symfony\Component\Finder\Finder;
-use Composer\IO\IOInterface;
 
 /**
  * ClassMapGenerator
