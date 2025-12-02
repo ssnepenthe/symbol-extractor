@@ -1,0 +1,22 @@
+{
+    "name": "ssnepenthe/symbol-map-generator",
+    "require": {
+        "symfony/finder": "^8.0",
+        "composer/pcre": "^3.3"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^12.4",
+        "symfony/var-dumper": "^8.0"
+    },
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "SymbolMapGenerator\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "SymbolMapGenerator\\": "tests/"
+        }
+    }
+}
