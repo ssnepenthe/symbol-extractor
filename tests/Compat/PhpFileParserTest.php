@@ -16,7 +16,7 @@
  * (c) Fabien Potencier <fabien@symfony.com>
  */
 
-namespace Composer\ClassMapGenerator;
+namespace SymbolMapGenerator;
 
 use Composer\ClassMapGenerator\ClassMapGenerator;
 use PHPUnit\Framework\TestCase;
