@@ -16,7 +16,7 @@
  * (c) Fabien Potencier <fabien@symfony.com>
  */
 
-namespace Composer\ClassMapGenerator;
+namespace SymbolMapGenerator;
 
 use Composer\Pcre\Preg;
 use Symfony\Component\Finder\Finder;

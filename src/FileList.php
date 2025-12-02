@@ -10,7 +10,7 @@
  * file that was distributed with this source code.
  */
 
-namespace Composer\ClassMapGenerator;
+namespace SymbolMapGenerator;
 
 /**
  * Contains a list of files which were scanned to generate a classmap
