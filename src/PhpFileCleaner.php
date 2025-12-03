@@ -238,6 +238,15 @@ class PhpFileCleaner
         $return = '';
 
         while ($this->index < $this->len) {
+            if ($this->skipAllStrings()) {
+                $return .= 'null';
+                continue;
+            }
+
+            if ($this->skipAllComments()) {
+                continue;
+            }
+
             if ($this->contents[$this->index] === $character) {
                 break;
             }
