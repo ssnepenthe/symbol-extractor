@@ -1,10 +1,10 @@
 <?php
 
-namespace SymbolMapGenerator\Tests;
+namespace SymbolExtractor\Tests;
 
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use SymbolMapGenerator\SymbolExtractor;
+use SymbolExtractor\SymbolExtractor;
 
 class SymbolExtractorTest extends TestCase
 {

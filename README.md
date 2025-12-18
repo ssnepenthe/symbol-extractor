@@ -1,1 +1,1 @@
-# symbol-map-generator
+# symbol-extractor

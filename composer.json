@@ -1,5 +1,5 @@
 {
-    "name": "ssnepenthe/symbol-map-generator",
+    "name": "ssnepenthe/symbol-extractor",
     "require-dev": {
         "phpunit/phpunit": "^12.4",
         "symfony/finder": "^8.0",
@@ -8,12 +8,12 @@
     "license": "MIT",
     "autoload": {
         "psr-4": {
-            "SymbolMapGenerator\\": "src/"
+            "SymbolExtractor\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "SymbolMapGenerator\\Tests\\": "tests/"
+            "SymbolExtractor\\Tests\\": "tests/"
         }
     }
 }

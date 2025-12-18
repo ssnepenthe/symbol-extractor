@@ -1,6 +1,6 @@
 <?php
 
-namespace SymbolMapGenerator;
+namespace SymbolExtractor;
 
 use PhpToken;
 
